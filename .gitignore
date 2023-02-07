@@ -14,3 +14,4 @@ code/.DS_Store
 *.out
 *.log
 .secrets/
+.secrets
