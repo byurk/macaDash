@@ -1,0 +1,16 @@
+/clean_data
+/raw_data
+/outputs
+/resources
+.Rproj.user
+.Rhistory
+.DS_Store
+Instructions.html
+code/.Rhistory
+code/.DS_Store
+*.html
+*_files/
+._.DS_Store
+*.out
+*.log
+.secrets/
