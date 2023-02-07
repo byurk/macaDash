@@ -1,0 +1,171 @@
+---
+title: "Macatawa Watershed Preliminary Data Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      version: 4
+      bootswatch: minty
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+# this is a modification of the dashboard from the metaShed repository
+library(flexdashboard)
+library(tidyverse)
+library(lubridate)
+library(googledrive)
+library(googlesheets4)
+library(plotly)
+# Install thematic and un-comment for themed static plots (i.e., ggplot2)
+# thematic::thematic_rmd()
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir=normalizePath("..")) #set working directory to the project directory
+```
+
+```{r, include = FALSE}
+drive_auth(cache = ".secrets", email = "watershed@hope.edu")
+
+drive_user()
+gs4_auth(token = drive_token())
+gs4_user()
+
+metaID <- as_id("1vHNHDCf18QGmhgaoXdcrsY8V8L5zjCde")
+
+metaID %>% 
+  drive_download(path = "clean_data/mac_meta.rds")
+
+mac_meta <- readRDS("clean_data/mac_meta.rds")
+```
+
+
+Column {data-width=650 .tabset}
+-----------------------------------------------------------------------
+
+### Water Temperature
+
+```{r, echo = FALSE}
+p <- mac_meta %>%
+  ggplot(aes(CollectionDate, WaterTemp_degC, color = WaterTempSeason4, shape = SiteType, text = sprintf("LSID: %s", Long_Sample_ID))) +
+  geom_point() +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p %>% ggplotly()
+```
+
+### Phosphate
+
+```{r, echo = FALSE}
+p <- mac_meta %>%
+  ggplot(aes(CollectionDate, PhosphateP_ugperL, color = SiteType, text = sprintf("LSID: %s", Long_Sample_ID))) +
+  geom_point() +
+  #geom_smooth(aes(CollectionDate, log(PhosphateP_ugperL), color = SiteType), method = "loess", inherit.aes = FALSE, se = FALSE, span = 0.3) +
+  scale_y_log10() +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p %>% ggplotly()
+```
+
+### mTEC
+
+```{r, echo = FALSE}
+p <- mac_meta %>%
+  ggplot(aes(CollectionDate, mTEC, color = SiteType, text = sprintf("LSID: %s", Long_Sample_ID))) +
+  geom_point() +
+  #geom_smooth(aes(CollectionDate, log(PhosphateP_ugperL), color = SiteType), method = "loess", inherit.aes = FALSE, se = FALSE, span = 0.3) +
+  scale_y_log10() +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p %>% ggplotly()
+```
+
+### Discharge
+
+```{r, echo = FALSE}
+p <- mac_meta %>%
+  ggplot(aes(CollectionDate, DischargeDailyMean_cfs, color = BaseflowCondition_Eckhardt)) +
+  geom_point() +
+  #geom_smooth(aes(CollectionDate, log(PhosphateP_ugperL), color = SiteType), method = "loess", inherit.aes = FALSE, se = FALSE, span = 0.3) +
+  scale_y_log10() +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p %>% ggplotly()
+```
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+```{r, include=FALSE}
+lm_wl_ID <- as_id("1_Dpl2Wt4Re7InI3TdzWhy8McKp7MyZyQ")
+discharge_ID <- as_id("1Q3i-NCit6G8-9aeRj_VJ0M21iRyExcyM")
+precip_ID <- as_id("1t_3Q6BIN-WaMxZHHJ6w3xYMBA_Ol_LZ7")
+
+lm_wl_ID %>% 
+  drive_download(path = "clean_data/lm_wl.rds")
+
+discharge_ID %>% 
+  drive_download(path = "clean_data/discharge.rds")
+
+precip_ID %>% 
+  drive_download(path = "clean_data/precip.rds")
+
+
+# LM water levels
+lmwl <- readRDS("clean_data/lm_wl.rds")
+
+# Discharge
+discharge <- readRDS("clean_data/discharge.rds")
+
+# Precip
+precip <- readRDS("clean_data/precip.rds")
+```
+
+### [Lake Michigan Water Levels](https://tidesandcurrents.noaa.gov/waterlevels.html?id=9087031&units=metric&bdate=20230202&edate=20230203&timezone=LST/LDT&datum=IGLD&interval=6&action=)
+
+```{r, echo = FALSE}
+p <- lmwl %>%
+  filter(Date > (today() - 30)) %>%
+  ggplot(aes(Date, LM_wl_m)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal()
+
+p %>% ggplotly()
+```
+
+### [Precipitation](https://www.ncdc.noaa.gov/cdo-web/datasets/GHCND/stations/GHCND:USW00004839/detail)
+
+```{r, echo = FALSE}
+p <- precip %>%
+  select(Date, Precip_tulip_mm, Precip_holla_3_9_mm) %>%
+  filter(Date > (today() - 30)) %>%
+  pivot_longer(starts_with("Precip"), names_to = "Station", values_to = "Precip_mm", names_pattern = "Precip_(.*)_mm") %>%
+  ggplot(aes(Date, Precip_mm, color = Station)) +
+  geom_line() +
+  geom_point() +
+  #scale_y_log10() +
+  theme_minimal()
+
+p %>% ggplotly()
+```
+
+### [Daily Discharge](https://waterdata.usgs.gov/monitoring-location/04108800/#parameterCode=00060&period=P30D)
+
+```{r, echo = FALSE}
+p <- discharge %>%
+  select(Date, DischargeDailyMean_cfs, BaseflowDailyMean_Eckhardt_cfs, BaseflowCondition_Eckhardt) %>%
+  rename(Discharge = DischargeDailyMean_cfs, Baseflow_Eck = BaseflowDailyMean_Eckhardt_cfs, Quick = BaseflowCondition_Eckhardt) %>%
+  filter(Date > (today() - 30)) %>%
+  pivot_longer(c(Discharge, Baseflow_Eck), names_to = "FlowType", values_to = "Flow_cfs") %>%
+  ggplot(aes(Date, Flow_cfs, color = FlowType)) +#, shape = Quick)) +
+  geom_line() +
+  geom_point() +
+  #scale_y_log10() +
+  theme_minimal()
+
+p %>% ggplotly()
+```
